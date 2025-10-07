@@ -485,6 +485,35 @@ def update_pericia(uid, nome, valor):
         if conn:
             put_conn(conn)
 
+def atualizar_necessidades_por_tempo(uid):
+    player = get_player(uid)
+    resistencia = player["pericias"].get("Resistência", 1)
+    max_horas = resistencia_horas_max(resistencia)
+    horas_sem_comer, horas_sem_beber, horas_sem_dormir = get_horas_sem_recursos(uid)
+    fome = player.get("fome", 0)
+    sede = player.get("sede", 0)
+    sono = player.get("sono", 0)
+
+    # Atualiza proporcionalmente
+    if horas_sem_comer is not None:
+        if horas_sem_comer >= max_horas:
+            fome = 100
+        else:
+            fome = int(100 * (horas_sem_comer / max_horas))
+        update_player_field(uid, "fome", fome)
+    if horas_sem_beber is not None:
+        if horas_sem_beber >= max_horas:
+            sede = 100
+        else:
+            sede = int(100 * (horas_sem_beber / max_horas))
+        update_player_field(uid, "sede", sede)
+    if horas_sem_dormir is not None:
+        if horas_sem_dormir >= max_horas:
+            sono = 100
+        else:
+            sono = int(100 * (horas_sem_dormir / max_horas))
+        update_player_field(uid, "sono", sono)
+
 def update_inventario(uid, item):
     conn = None
     try:
@@ -1245,7 +1274,11 @@ async def receber_edicao(update: Update, context: ContextTypes.DEFAULT_TYPE):
         update_player_field(uid, "sp", sp_max)
     else:
         update_player_field(uid, "sp", min(player["sp"], sp_max))
-       
+
+    # -------- PATCH ADICIONADO: recalcula necessidades conforme nova resistência --------
+    atualizar_necessidades_por_tempo(uid)
+    # ---------------------------------------------------------------------------
+
     await update.message.reply_text(" ✅ Ficha atualizada com sucesso!")
     
     # Limpar estado de edição e cancelar timer
@@ -2326,15 +2359,18 @@ async def status(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if not target_id:
             await update.message.reply_text("❌ Jogador não encontrado.")
             return
+        # -------- PATCH ADICIONADO: recalcula necessidades conforme tempo --------
+        atualizar_necessidades_por_tempo(target_id)
         player = get_player(target_id)
-        if not player:
-            await update.message.reply_text("❌ Jogador não encontrado.")
-            return
     else:
+        # -------- PATCH ADICIONADO: recalcula necessidades conforme tempo --------
+        atualizar_necessidades_por_tempo(uid)
         player = get_player(uid)
-        if not player:
-            await update.message.reply_text("Use /start primeiro!")
-            return
+        # ---------------------------------------------------------
+
+    if not player:
+        await update.message.reply_text("Use /start primeiro!")
+        return
 
     hp, hp_max = player.get("hp", 0), player.get("hp_max", 0)
     sp, sp_max = player.get("sp", 0), player.get("sp_max", 0)
