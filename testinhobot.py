@@ -1535,7 +1535,7 @@ async def texto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await receber_edicao(update, context)
         return
 
-    # PASSO 1: aguardando valor de comida/bebida
+    # Se aguardando valor de comida/bebida
     if 'pending_tipo_consumivel' in context.user_data:
         tipo, nome, peso, bonus, armas_compat = context.user_data['pending_tipo_consumivel']
         try:
@@ -1556,7 +1556,6 @@ async def texto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await update.message.reply_text(f"Consumível '{nome}' adicionado ao catálogo. Reduz {valor} de sede.")
         del context.user_data['pending_tipo_consumivel']
-        # Remover pendência no banco!
         conn = None
         try:
             conn = get_conn()
@@ -1568,7 +1567,7 @@ async def texto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 put_conn(conn)
         return
 
-    # PASSO 2: aguardando tipo do consumível
+    # Se aguardando tipo do consumível
     conn = None
     try:
         conn = get_conn()
@@ -1592,7 +1591,6 @@ async def texto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Quantos pontos de sede esse item reduz? Envie o número.")
             context.user_data['pending_tipo_consumivel'] = ("bebida", nome, peso, bonus, armas_compat)
             return
-        # Para os outros tipos, já adiciona direto!
         add_catalog_item(nome, peso, consumivel=True, bonus=bonus, tipo=tipo, armas_compat=armas_compat)
         conn = None
         try:
@@ -1603,9 +1601,7 @@ async def texto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         finally:
             if conn:
                 put_conn(conn)
-        await update.message.reply_text(
-            f"✅ Consumível '{nome}' adicionado ao catálogo com {peso:.2f} kg. Bônus: {bonus}, Tipo: {tipo}."
-        )
+        await update.message.reply_text(f"✅ Consumível '{nome}' adicionado ao catálogo com {peso:.2f} kg. Bônus: {bonus}, Tipo: {tipo}.")
         return
 
 async def addarma(update: Update, context: ContextTypes.DEFAULT_TYPE):
