@@ -1525,22 +1525,31 @@ async def receber_tipo_consumivel(update: Update, context: ContextTypes.DEFAULT_
             put_conn(conn)
 
 async def texto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not is_liberado(update.effective_user.id):
+    logger = logging.getLogger(__name__)
+    uid = update.effective_user.id
+
+    # DEBUG: log cada entrada
+    logger.info(f"[texto_handler] Mensagem recebida de {uid}: {update.message.text}")
+
+    if not is_liberado(uid):
+        logger.info("[texto_handler] Usuário não liberado")
         await acesso_negado(update)
         return
-    uid = update.effective_user.id
 
     # Se está editando ficha
     if uid in EDIT_PENDING:
+        logger.info("[texto_handler] Editando ficha")
         await receber_edicao(update, context)
         return
 
     # Se aguardando valor de comida/bebida
     if 'pending_tipo_consumivel' in context.user_data:
         tipo, nome, peso, bonus, armas_compat = context.user_data['pending_tipo_consumivel']
+        logger.info(f"[texto_handler] Pending tipo consumivel: {tipo}, {nome}")
         try:
             valor = int(update.message.text.strip())
         except Exception:
+            logger.warning("[texto_handler] Valor de comida/bebida inválido")
             await update.message.reply_text("Digite apenas o número.")
             return
         if tipo == "comida":
@@ -1556,6 +1565,49 @@ async def texto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
             await update.message.reply_text(f"Consumível '{nome}' adicionado ao catálogo. Reduz {valor} de sede.")
         del context.user_data['pending_tipo_consumivel']
+        # Remover pendência no banco!
+        conn = None
+        try:
+            conn = get_conn()
+            c = conn.cursor()
+            c.execute("DELETE FROM pending_consumivel WHERE user_id=%s", (uid,))
+            conn.commit()
+            logger.info("[texto_handler] Pending consumivel removido do banco")
+        finally:
+            if conn:
+                put_conn(conn)
+        return
+
+    # Se aguardando tipo do consumível
+    conn = None
+    try:
+        conn = get_conn()
+        c = conn.cursor()
+        c.execute("SELECT nome, peso, bonus, armas_compat FROM pending_consumivel WHERE user_id=%s", (uid,))
+        row = c.fetchone()
+        logger.info(f"[texto_handler] Pending consumivel DB row: {row}")
+    finally:
+        if conn:
+            put_conn(conn)
+    if row:
+        tipo = update.message.text.strip().lower()
+        nome, peso, bonus, armas_compat = row
+        logger.info(f"[texto_handler] Resposta de tipo: {tipo}")
+        if tipo not in ("cura", "dano", "nenhum", "municao", "comida", "bebida"):
+            await update.message.reply_text("Tipo inválido. Use: cura, dano, municao, comida, bebida ou nenhum.")
+            return
+        if tipo == "comida":
+            logger.info("[texto_handler] Pergunta pontos de fome")
+            await update.message.reply_text("Quantos pontos de fome esse item reduz? Envie o número.")
+            context.user_data['pending_tipo_consumivel'] = ("comida", nome, peso, bonus, armas_compat)
+            return
+        if tipo == "bebida":
+            logger.info("[texto_handler] Pergunta pontos de sede")
+            await update.message.reply_text("Quantos pontos de sede esse item reduz? Envie o número.")
+            context.user_data['pending_tipo_consumivel'] = ("bebida", nome, peso, bonus, armas_compat)
+            return
+        logger.info("[texto_handler] Adiciona consumivel direto ao catálogo")
+        add_catalog_item(nome, peso, consumivel=True, bonus=bonus, tipo=tipo, armas_compat=armas_compat)
         conn = None
         try:
             conn = get_conn()
@@ -1565,7 +1617,11 @@ async def texto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         finally:
             if conn:
                 put_conn(conn)
+        await update.message.reply_text(f"✅ Consumível '{nome}' adicionado ao catálogo com {peso:.2f} kg. Bônus: {bonus}, Tipo: {tipo}.")
         return
+
+    # DEBUG: se nada foi processado, loga
+    logger.info("[texto_handler] Nenhum pending consumivel encontrado, mensagem ignorada.")
 
     # Se aguardando tipo do consumível
     conn = None
