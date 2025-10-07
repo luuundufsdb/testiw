@@ -1535,7 +1535,7 @@ async def texto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await receber_edicao(update, context)
         return
 
-    # 1. FLUXO FINAL: aguardando valor de comida/bebida
+    # PASSO 1: aguardando valor de comida/bebida
     if 'pending_tipo_consumivel' in context.user_data:
         tipo, nome, peso, bonus, armas_compat = context.user_data['pending_tipo_consumivel']
         try:
@@ -1558,14 +1558,13 @@ async def texto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         conn.close()
         return
 
-    # 2. FLUXO INICIAL: aguardando tipo do consumível
+    # PASSO 2: aguardando tipo do consumível
     conn = get_conn()
     c = conn.cursor()
     c.execute("SELECT nome, peso, bonus, armas_compat FROM pending_consumivel WHERE user_id=%s", (uid,))
     row = c.fetchone()
     conn.close()
     if row:
-        # Pega o tipo que o usuário digitou
         tipo = update.message.text.strip().lower()
         nome, peso, bonus, armas_compat = row
         if tipo not in ("cura", "dano", "nenhum", "municao", "comida", "bebida"):
@@ -1579,9 +1578,8 @@ async def texto_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("Quantos pontos de sede esse item reduz? Envie o número.")
             context.user_data['pending_tipo_consumivel'] = ("bebida", nome, peso, bonus, armas_compat)
             return
-        # Para os outros tipos, já adiciona direto!
+        # Para cura/dano/municao/nenhum: adiciona direto
         add_catalog_item(nome, peso, consumivel=True, bonus=bonus, tipo=tipo, armas_compat=armas_compat)
-        # Remove pendência
         conn = get_conn()
         c = conn.cursor()
         c.execute("DELETE FROM pending_consumivel WHERE user_id=%s", (uid,))
