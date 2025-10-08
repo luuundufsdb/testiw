@@ -120,7 +120,7 @@ def init_db():
             id BIGINT PRIMARY KEY,
             nome TEXT,
             username TEXT,
-            peso_max INTEGER DEFAULT 0,
+            peso_max REAL DEFAULT 0,
             hp INTEGER DEFAULT 0,
             sp INTEGER DEFAULT 0,
             rerolls INTEGER DEFAULT 3,
@@ -174,6 +174,17 @@ def init_db():
             nome TEXT PRIMARY KEY,
             peso REAL
         )''')
+        
+        # =========== INÍCIO DA CORREÇÃO ===========
+        try:
+            # Garante que as colunas de bônus sejam do tipo TEXTO
+            c.execute("ALTER TABLE catalogo ALTER COLUMN bonus TYPE TEXT;")
+            c.execute("ALTER TABLE catalogo ALTER COLUMN arma_bonus TYPE TEXT;")
+        except psycopg2.Error:
+            # Ignora o erro se a coluna não existir ou já for do tipo correto
+            conn.rollback()
+        # =========== FIM DA CORREÇÃO ===========
+
         for alter in [
             "ADD COLUMN IF NOT EXISTS ultimo_alimento TIMESTAMP DEFAULT NOW()",
             "ADD COLUMN IF NOT EXISTS ultima_agua TIMESTAMP DEFAULT NOW()",
@@ -186,10 +197,10 @@ def init_db():
 
         for alter in [
             "ADD COLUMN IF NOT EXISTS consumivel BOOLEAN DEFAULT FALSE",
-            "ADD COLUMN IF NOT EXISTS bonus TEXT DEFAULT '0'", # Alterado para TEXT
+            "ADD COLUMN IF NOT EXISTS bonus TEXT DEFAULT '0'",
             "ADD COLUMN IF NOT EXISTS tipo TEXT DEFAULT ''",
             "ADD COLUMN IF NOT EXISTS arma_tipo TEXT DEFAULT ''",
-            "ADD COLUMN IF NOT EXISTS arma_bonus TEXT DEFAULT '0'", # Alterado para TEXT
+            "ADD COLUMN IF NOT EXISTS arma_bonus TEXT DEFAULT '0'",
             "ADD COLUMN IF NOT EXISTS muni_atual INTEGER DEFAULT 0",
             "ADD COLUMN IF NOT EXISTS muni_max INTEGER DEFAULT 0",
             "ADD COLUMN IF NOT EXISTS armas_compat TEXT DEFAULT ''",
@@ -200,6 +211,7 @@ def init_db():
                 c.execute(f"ALTER TABLE catalogo {alter};")
             except Exception:
                 conn.rollback()
+
         c.execute('''CREATE TABLE IF NOT EXISTS pending_consumivel (
             user_id BIGINT PRIMARY KEY,
             nome TEXT,
@@ -2729,7 +2741,7 @@ async def dormir(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"\n🍽️ Fome aumentou em {horas*2}."
         f"\n💧 Sede aumentou em {horas*1}."
     )
-    await update.message.reply_text(msg) # <<< LINHA ADICIONADA
+    await update.message.reply_text(msg)
     await checar_alerta_necessidades(uid, context.bot)
 
 async def checar_alerta_necessidades(uid, bot):
